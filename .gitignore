@@ -1,0 +1,7 @@
+# Logs
+node\_modules
+dist
+.env
+npm-debug.log
+.vscode
+.DS\_Store
