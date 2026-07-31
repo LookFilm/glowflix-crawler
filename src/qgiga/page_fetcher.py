@@ -21,7 +21,5 @@ class PageFetcher:
         session = requests.Session()
         response = session.get("https://m.qgiga.com{}".format(url), headers=headers)
         if response.status_code != 200:
-            print("获取信息失败: {}".format(url))
-            print(response.text)
-            return None
+            raise ConnectionError("网站访问异常: {}".format(url))
         return response.text
