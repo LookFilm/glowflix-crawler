@@ -159,7 +159,6 @@ class Crawler(object):
         }
 
         json_str = json.dumps(page_info, separators=(",", ":"), ensure_ascii=False)
-        print(file_path)
         cls.write_to_file(file_path, json_str)
 
     @classmethod
