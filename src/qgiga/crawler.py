@@ -27,8 +27,14 @@ class Crawler(object):
         # types_folder_path = os.path.join(cls.base_path, "types")
         # if os.path.exists(types_folder_path):
         #     shutil.rmtree(types_folder_path)
-        # cls.crawl_index()
-        cls.crawl_all_type_list()
+
+        type_hrefs = cls.crawl_all_type_href()
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            executor.submit(cls.crawl_index)
+            for href in type_hrefs:
+                executor.submit(cls.crawl_type, href)
+
 
     @classmethod
     def crawl_index(cls):
@@ -46,13 +52,15 @@ class Crawler(object):
                 href = movie.find("div", class_="module-item-titlebox").find("a")["href"]
                 print("首页加载视频: {}-{}".format(module_title, href))
                 try:
-                    cls.crawl_detail(href)
+                    cls.crawl_detail(href, False)
                 except Exception as e:
                     print(e)
                     continue
                 path = "/qgiga/movies/{}".format(cls.get_file_name(href))
                 title = movie.find("div", class_="module-item-titlebox").find("a").get_text()
-                movie_list.append({"id": cls.get_movie_id(href), "title": title, "cover": cover, "href": href, "tag": tag, "path": path})
+                movie_list.append(
+                    {"id": cls.get_movie_id(href), "title": title, "cover": cover, "href": href, "tag": tag,
+                     "path": path})
             group_list.append({"title": module_title, "list": movie_list})
         json_str = json.dumps(group_list, separators=(",", ":"), ensure_ascii=False)
         file_path = cls.base_path + "/index.json"
@@ -60,11 +68,12 @@ class Crawler(object):
 
     @classmethod
     def crawl_all_type_list(cls):
-        type_hrefs = cls.crawl_all_type_href()
+        type_hrefs = ["/hm/6.html", "/hm/8.html", "/hm/5.html", "/hm/7.html"]# cls.crawl_all_type_href()
         for href in type_hrefs:
-            page_hrefs = cls.crawl_type_page_href(href)
-            for page_href in page_hrefs:
-                cls.crawl_type_list(page_href, False)
+            cls.crawl_type(href)
+            # page_hrefs = cls.crawl_type_page_href(href)
+            # for page_href in page_hrefs:
+            #     cls.crawl_type_list(page_href, False)
 
     @classmethod
     def crawl_all_type_href(cls):
@@ -89,6 +98,12 @@ class Crawler(object):
         file_path = cls.base_path + "/types/index.json"
         cls.write_to_file(file_path, json_str)
         return hrefs
+
+    @classmethod
+    def crawl_type(cls, type_href: str):
+        page_hrefs = cls.crawl_type_page_href(type_href)
+        for page_href in page_hrefs:
+            cls.crawl_type_list(page_href, False)
 
     @classmethod
     def crawl_type_page_href(cls, url: str):
@@ -130,19 +145,21 @@ class Crawler(object):
         total = main.find("div", class_="page-heading").find("span", class_="important").get_text()
         module_items = main.find("div", class_="module-items").find_all("div", class_="module-item")
         movie_list = []
+
         for module_item in module_items:
             tag = module_item.find("div", class_="module-item-text").get_text()
             cover = module_item.find("div", class_="module-item-cover").find("img")["data-src"]
             href = module_item.find("div", class_="module-item-titlebox").find("a")["href"]
             print("分类加载视频: {}-{}: {}".format(type_id, current_page, href))
             try:
-                cls.crawl_detail(href)
+                cls.crawl_detail(href, False)
             except Exception as e:
                 print(e)
                 continue
             path = "/qgiga/movies/{}".format(cls.get_file_name(href))
             title = module_item.find("div", class_="module-item-titlebox").find("a").get_text()
-            movie_list.append({"id": cls.get_movie_id(href), "title": title, "cover": cover, "href": href, "tag": tag, "path": path})
+            movie_list.append(
+                {"id": cls.get_movie_id(href), "title": title, "cover": cover, "href": href, "tag": tag, "path": path})
         page = main.find("div", class_="module-footer").find("div", id="page")
         # current_page = page.find("span", class_="page-current").get_text()
         last_page_href = page.find("a",  {"title": "尾页", "class": "page-number"})["href"]
@@ -164,10 +181,8 @@ class Crawler(object):
     @classmethod
     def crawl_batch_detail(cls, urls: [str]):
         print("Crawling")
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            for url in urls:
-                executor.submit(cls.crawl_detail, url, False)
-            # executor.map(cls.crawl_detail, urls)
+        for url in urls:
+            cls.crawl_detail(url, False)
         print("Finished")
 
     @classmethod
@@ -189,6 +204,7 @@ class Crawler(object):
             tags.append(tag.get_text().replace("\n", "").replace(" ", ""))
         detail["tags"] = tags
         video_info_items = video_info.find_all("div", class_="video-info-items")
+
         for video_info_item in video_info_items:
             title = video_info_item.find("span", class_="video-info-itemtitle").get_text()
             content = video_info_item.find("div", class_="video-info-item")
@@ -208,14 +224,23 @@ class Crawler(object):
             elif "剧情" in title:
                 detail["plot"] = value
         videos = []
+        detail["allVideosOk"] = True
         for video in soup.find("div", class_="module-blocklist").find_all("a"):
             name = video.get_text().strip()
             href = video.get("href")
-            url = cls.crawl_video_url(href)
-            videos.append({"name": name, "url": url, "href": href})
+            url = ""
+            isOk = True
+            try:
+                url = cls.crawl_video_url(href)
+            except Exception as e:
+                detail["allVideosOk"] = False
+                isOk = False
+            videos.append({"name": name, "url": url, "href": href, "isOk": isOk})
         detail["videos"] = videos
         json_str = json.dumps(detail, separators=(",", ":"), ensure_ascii=False)
         cls.write_to_file(file_path, json_str)
+        if not detail["allVideosOk"]:
+            raise ValueError("影片部分视频错误")
 
     @classmethod
     def crawl_video_url(cls, url: str):
@@ -254,7 +279,7 @@ class Crawler(object):
         try:
             resp = requests.get(url, headers=headers, timeout=40, allow_redirects=True)
         except Exception as e:
-            raise ConnectionError("请求视频异常:", e)
+            raise ConnectionError("请求视频异常", e)
 
         if resp.status_code != 200:
             raise ConnectionError("视频请求失败")

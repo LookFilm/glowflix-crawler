@@ -11,7 +11,7 @@ class PageFetcher:
 
     @classmethod
     def fetch_html(cls, url: str):
-        time.sleep(random.uniform(0.2, 1))
+        time.sleep(random.uniform(0.2, 0.8))
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36",
             "Referer": "https://vodcnd11.rsfcxq.com/",
