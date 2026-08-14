@@ -198,7 +198,7 @@ class Crawler(object):
         cover = main.find("div", class_="module-item-pic").find("img")["data-src"]
         video_info = main.find("div", class_="video-info")
         name = video_info.find("h1", class_="page-title").get_text()
-        detail = {"cover": cover, "name": name, "id": cls.get_movie_id(url)}
+        detail = {"cover": cover, "name": name, "id": cls.get_movie_id(url), "isCompleted": False}
         tags = []
         for tag in video_info.find_all(class_="tag-link"):
             tags.append(tag.get_text().replace("\n", "").replace(" ", ""))
@@ -219,28 +219,34 @@ class Crawler(object):
                 detail["updateTime"] = value
             elif "备注" in title:
                 detail["remark"] = value
+                if "全集" in value or "完结" in value or cls._is_match_full_episode(value):
+                    detail["isCompleted"] = True
             elif "语言" in title:
                 detail["language"] = value
             elif "剧情" in title:
                 detail["plot"] = value
+
         videos = []
         detail["allVideosOk"] = True
         for video in soup.find("div", class_="module-blocklist").find_all("a"):
             name = video.get_text().strip()
+            if name == "全集":
+                detail["isCompleted"] = True
             href = video.get("href")
-            url = ""
-            isOk = True
             try:
                 url = cls.crawl_video_url(href)
+                videos.append({"name": name, "url": url, "href": href})
             except Exception as e:
                 detail["allVideosOk"] = False
-                isOk = False
-            videos.append({"name": name, "url": url, "href": href, "isOk": isOk})
+                detail["isCompleted"] = False
+                break
+
         detail["videos"] = videos
         json_str = json.dumps(detail, separators=(",", ":"), ensure_ascii=False)
+        print(json_str)
         cls.write_to_file(file_path, json_str)
         if not detail["allVideosOk"]:
-            raise ValueError("影片部分视频错误")
+            raise ValueError("影片部分视频错误,{}".format(url))
 
     @classmethod
     def crawl_video_url(cls, url: str):
@@ -287,6 +293,20 @@ class Crawler(object):
         playlist = m3u8.loads(resp.text)
         if playlist is None:
             raise ValueError("获取视频内容失败")
+
+    @classmethod
+    def _is_match_full_episode(cls, text: str) -> bool:
+        """
+        判断字符串是否符合「全数字集」格式，例如：全60集 → True
+        Args:
+            text: 待校验文本，如"全60集"
+        Returns:
+            bool: 符合返回True，否则False
+        """
+        if not isinstance(text, str):
+            return False
+        pattern = r"^全(\d+)集$"
+        return bool(re.match(pattern, text.strip()))
 
 
 if __name__ == '__main__':

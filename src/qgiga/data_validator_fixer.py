@@ -25,6 +25,10 @@ class DataValidatorFixer:
 
     @classmethod
     def regenerate_paginated_files(cls):
+        """
+        重新生成分页文件
+        :return:
+        """
         type_folder_path = Path("{}/types".format(cls.base_path))
         if not type_folder_path.exists():
             raise FileNotFoundError("分类文件不存在")
@@ -35,25 +39,26 @@ class DataValidatorFixer:
                 for file_path in type_file_path.iterdir():
                     print(file_path)
 
+    @classmethod
+    def detect_video_playable(cls):
+        """
+        检测不能观看视频
+        :return:
+        """
+        movies_path = Path("{}/movies".format(cls.base_path))
+        if not movies_path.exists():
+            raise FileNotFoundError("视频不存在")
 
-        # for movie_path in Path(movies_path).iterdir():
-        #     if movie_path.is_file():
-        #         with open(movie_path, "r", encoding="utf-8") as file:
-        #             movie_json = json.load(file)
-        #         if "isCompleted" in movie_json and movie_json["isCompleted"]:
-        #             continue
-        #         print(movie_json["remark"])
-        #         if "全集" in movie_json["remark"] or "完结" in movie_json["remark"] or cls._is_match_full_episode(
-        #                 movie_json["remark"]):
-        #             movie_json["isCompleted"] = True
-        #             json_str = json.dumps(movie_json, separators=(",", ":"), ensure_ascii=False)
-        #             with open(movie_path, "w") as file:
-        #                 print(json_str)
-        #                 file.write("更新数据")
-        #             continue
-        #         print("重新加载")
-
-
+        for movie_path in Path(movies_path).iterdir():
+            if movie_path.is_file():
+                with open(movie_path, "r", encoding="utf-8") as file:
+                    movie_json = json.load(file)
+                if "allVideosOk" in movie_json and movie_json["allVideosOk"] and "isCompleted" in movie_json and movie_json["isCompleted"]:
+                    continue
+                try:
+                    Crawler.crawl_detail("/hema/{}.html".format(movie_json["id"]), True)
+                except Exception as e:
+                    print(e)
 
     @classmethod
     def sanitize_movie_data(cls):
@@ -71,57 +76,52 @@ class DataValidatorFixer:
                     movie_json = json.load(file)
                 if "isCompleted" in movie_json and movie_json["isCompleted"]:
                     continue
+                print(movie_json)
+
+    @classmethod
+    def sanitize_movie_completed(cls):
+        """
+        检测视频是否完结
+        :return:
+        """
+        movies_path = Path("{}/movies".format(cls.base_path))
+        if not movies_path.exists():
+            raise FileNotFoundError("视频不存在")
+
+        for movie_path in Path(movies_path).iterdir():
+            if movie_path.is_file():
+                with open(movie_path, "r", encoding="utf-8") as file:
+                    movie_json = json.load(file)
+                if "isCompleted" in movie_json and movie_json["isCompleted"]:
+                    continue
+                print("----------------------------------------------")
                 print(movie_json["remark"])
-                if "全集" in movie_json["remark"] or "完结" in movie_json["remark"] or cls._is_match_full_episode(movie_json["remark"]):
+                print(movie_json["videos"])
+                print(len(movie_json["videos"]))
+                completed = input("请输入Y/N：")
+                if completed == "Y":
                     movie_json["isCompleted"] = True
                     json_str = json.dumps(movie_json, separators=(",", ":"), ensure_ascii=False)
-                    with open(movie_path, "w") as file:
-                        print(json_str)
-                        file.write("更新数据")
-                    continue
-                print("重新加载")
-                # movie_href = cls._get_movie_href(movie_path)
-                # Crawler.crawl_detail(movie_href, True)
-                # 全集 完结
+                    cls._write_to_file(movie_path.as_posix(), json_str)
 
-    # @classmethod
-    # def refresh_movie_state(cls):
-    #     """
-    #     设置视频状态
-    #     :return:
-    #     """
-    #     movies_path = Path("{}/movies".format(cls.base_path))
-    #     if not movies_path.exists():
-    #         raise FileNotFoundError("视频不存在")
-    #
-    #     for movie_path in Path(movies_path).iterdir():
-    #         if movie_path.is_file():
-    #             with open(movie_path, "r", encoding="utf-8") as file:
-    #                 movie_json = json.load(file)
-    #
-    #             if movie_json is None:
-    #                 continue
-    #             for video in movie_json["videos"]:
-    #                 if "errMessage" not in video:
-    #                     video["isOk"] = True
-    #                     continue
-    #                 if video["errMessage"] == "success":
-    #                     video["isOk"] = True
-    #                 else:
-    #                     video["isOk"] = False
-    #                     movie_json["allVideosOk"] = False
-    #                 del video["errMessage"]
-    #             json_str = json.dumps(movie_json, separators=(",", ":"), ensure_ascii=False)
-    #             print(json_str)
-    #             with open(movie_path, "w") as file:
-    #                 print(json_str)
-    #                 file.write(json_str)
+    @classmethod
+    def _update_movie_completed(cls, path: str):
+        with open(path, "r", encoding="utf-8") as file:
+            movie_json = json.load(file)
+        movie_json["isCompleted"] = True
+        json_str = json.dumps(movie_json, separators=(",", ":"), ensure_ascii=False)
+        cls._write_to_file(path, json_str)
 
+
+
+    @classmethod
+    def _write_to_file(cls, path: str, content: str):
+        with open(path, "w") as file:
+            file.write(content)
 
     @classmethod
     def _get_movie_href(cls, movie_path: Path):
         return "/hema/{}.html".format(movie_path.stem)
-        pass
 
     @classmethod
     def _is_match_full_episode(cls, text: str) -> bool:
@@ -137,9 +137,6 @@ class DataValidatorFixer:
         pattern = r"^全(\d+)集$"
         return bool(re.match(pattern, text.strip()))
 
+
 if __name__ == '__main__':
-    # DataValidatorFixer.refresh_movie_state()
-    try:
-        Crawler.crawl_video_url("/play/63906-0-0.html")
-    except Exception as e:
-        print(e)
+    DataValidatorFixer.detect_video_playable()
