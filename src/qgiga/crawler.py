@@ -61,7 +61,8 @@ class Crawler(object):
                 movie_list.append(
                     {"id": cls.get_movie_id(href), "title": title, "cover": cover, "href": href, "tag": tag,
                      "path": path})
-            group_list.append({"title": module_title, "list": movie_list})
+            if len(movie_list) > 0:
+                group_list.append({"title": module_title, "list": movie_list})
         json_str = json.dumps(group_list, separators=(",", ":"), ensure_ascii=False)
         file_path = cls.base_path + "/index.json"
         cls.write_to_file(file_path, json_str)
@@ -312,6 +313,6 @@ class Crawler(object):
 
 
 if __name__ == '__main__':
-    Crawler.refresh_all_info()
-    # Crawler.crawl_index()
+    # Crawler.refresh_all_info()
+    Crawler.crawl_index()
 
