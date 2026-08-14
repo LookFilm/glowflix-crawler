@@ -191,7 +191,10 @@ class Crawler(object):
         file_path = "{}/movies/{}".format(cls.base_path, cls.get_file_name(url))
         if Path(file_path).is_file() and not should_reload:
             print("已存在详情: {}".format(url))
-            return
+            with open(file_path, "r", encoding="utf-8") as file:
+                movie_json = json.load(file)
+            if "isCompleted" in movie_json and movie_json["isCompleted"] and "allVideosOk" in movie_json and movie_json["allVideosOk"]:
+                return
         html = PageFetcher.fetch_html(url)
         soup = BeautifulSoup(html, "html.parser")
         main = soup.find(id="main").find("div", class_="view-heading")
@@ -243,7 +246,6 @@ class Crawler(object):
 
         detail["videos"] = videos
         json_str = json.dumps(detail, separators=(",", ":"), ensure_ascii=False)
-        print(json_str)
         cls.write_to_file(file_path, json_str)
         if not detail["allVideosOk"]:
             raise ValueError("影片部分视频错误,{}".format(url))
@@ -310,17 +312,6 @@ class Crawler(object):
 
 
 if __name__ == '__main__':
-    # Crawler.crawl_video_url("/play/62396-0-0.html", True)
-    # 62396  3029
-
-    # Crawler.crawl_detail("/hema/61574.html")
-
+    Crawler.refresh_all_info()
     # Crawler.crawl_index()
 
-    # print(Crawler.check_m3u8_available("https://v8.ppqrrs.com/wjv8/202607/28/9ASPwi2sxg95/video/index.m3u8"))
-
-    Crawler.refresh_all_info()
-
-    # Crawler.crawl_all_type_href()
-
-    # Crawler.crawl_type_page_href("/hm/1.html")
